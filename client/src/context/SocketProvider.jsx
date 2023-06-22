@@ -9,7 +9,10 @@ export const useSocket = () => {
 };
 
 export const SocketProvider = (props) => {
-  const socket = useMemo(() => io("https://webrtc-connect-v1-0.onrender.com"), []);
+  const socket = useMemo(() => io(
+    "https://webrtc-connect-v1-0.onrender.com"
+    // "localhost:8000"
+    ), []);
 
   return (
     <SocketContext.Provider value={socket}>

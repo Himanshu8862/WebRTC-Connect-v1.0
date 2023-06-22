@@ -35,4 +35,13 @@ io.on("connection", (socket) => {
     console.log("peer:nego:done", ans);
     io.to(to).emit("peer:nego:final", { from: socket.id, ans });
   });
+
+  socket.on("user:mute", ({to, ismute})=>{
+    io.to(to).emit("user:mute:done", { from: socket.id, ismute });
+  })
+
+  socket.on("user:video", ({to, isVideo})=>{
+    io.to(to).emit("user:video:done", { from: socket.id, isVideo });
+  })
+
 });
