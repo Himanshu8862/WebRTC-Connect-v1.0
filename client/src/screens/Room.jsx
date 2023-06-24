@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback, useState } from "react";
+import React, { useEffect, useCallback, useState, useRef } from "react";
 import ReactPlayer from "react-player";
 import peer from "../service/peer";
 import { useSocket } from "../context/SocketProvider";
@@ -8,6 +8,10 @@ const RoomPage = () => {
     const [remoteSocketId, setRemoteSocketId] = useState(null);
     const [myStream, setMyStream] = useState();
     const [remoteStream, setRemoteStream] = useState();
+    const [msg, setMsg] = useState("");
+    const [chats, setChats] = useState([]);
+    const scrollRef = useRef();
+    const [remoteEmail, setRemoteEmail] = useState(null);
 
     const [ismute, setIsmute] = useState(false)
     const [isRemoteMute, setIsRemoteMute] = useState(false);
@@ -17,6 +21,7 @@ const RoomPage = () => {
 
     const handleUserJoined = useCallback(({ email, id }) => {
         console.log(`Email ${email} joined room`);
+        setRemoteEmail(email);
         setRemoteSocketId(id);
     }, []);
 
@@ -31,8 +36,9 @@ const RoomPage = () => {
     }, [remoteSocketId, socket]);
 
     const handleIncommingCall = useCallback(
-        async ({ from, offer }) => {
+        async ({ from, offer, email }) => {
             setRemoteSocketId(from);
+            setRemoteEmail(email);
             const stream = await navigator.mediaDevices.getUserMedia({
                 audio: true,
                 video: true,
@@ -104,6 +110,31 @@ const RoomPage = () => {
         setIsRemoteVideo(!isRemoteVideo)
     }, [isRemoteVideo])
 
+    const handleSendMsg = (e) => {
+        e.preventDefault();
+        const curmsg = {
+            "isRemoteMsg": false,
+            "msg": msg,
+        }
+        const prevchats = [...chats];
+        socket.emit("user:msgsend", { to: remoteSocketId, msg })
+        prevchats.push(curmsg);
+        setChats(prevchats);
+    }
+
+    const handleIncommingMsg = useCallback(
+        ({ msg }) => {
+            const curmsg = {
+                "isRemoteMsg": true,
+                "msg": msg,
+            }
+            const prevchats = [...chats];
+            prevchats.push(curmsg);
+            setChats(prevchats);
+        },
+        [chats],
+    )
+
     useEffect(() => {
         peer.peer.addEventListener("track", async (ev) => {
             const remoteStream = ev.streams;
@@ -120,6 +151,7 @@ const RoomPage = () => {
         socket.on("peer:nego:final", handleNegoNeedFinal);
         socket.on("user:mute:done", handleUserMuteDone)
         socket.on("user:video:done", handleUserVideoDone)
+        socket.on("user:msgsend:done", handleIncommingMsg);
 
 
         return () => {
@@ -130,6 +162,7 @@ const RoomPage = () => {
             socket.off("peer:nego:final", handleNegoNeedFinal);
             socket.off("user:mute:done", handleUserMuteDone)
             socket.off("user:video:done", handleUserVideoDone)
+            socket.off("user:msgsend:done", handleIncommingMsg);
         };
     }, [
         socket,
@@ -139,44 +172,79 @@ const RoomPage = () => {
         handleNegoNeedIncomming,
         handleNegoNeedFinal,
         handleUserMuteDone,
-        handleUserVideoDone
+        handleUserVideoDone,
+        handleIncommingMsg
     ]);
 
     return (
-        <div>
-            <h1>Room Page</h1>
-            <h4>{remoteSocketId ? "Connected" : "No one in room"}</h4>
-            {myStream && <button onClick={sendStreams}>Send Stream</button>}
-            {!remoteStream && remoteSocketId && <button onClick={handleCallUser}>CALL</button>}
+        <>
+            <div>
+                <h1>Room Page</h1>
+                <h4>{remoteSocketId ? "Connected" : "No one in room"}</h4>
+                {myStream && <button onClick={sendStreams}>Send Stream</button>}
+                {!remoteStream && remoteSocketId && <button onClick={handleCallUser}>CALL</button>}
 
-            {remoteStream && <button onClick={handleVideo}>{isVideo ? "Hide video" : "Show video"}</button>}
-            {remoteStream && <button onClick={handleMute}>{ismute ? "Unmute" : "Mute"}</button>}
+                {remoteStream && <button onClick={handleVideo}>{isVideo ? "Hide video" : "Show video"}</button>}
+                {remoteStream && <button onClick={handleMute}>{ismute ? "Unmute" : "Mute"}</button>}
 
-            {myStream && (
-                <>
-                    <h1>My Stream</h1>
-                    { isVideo ? <ReactPlayer
-                        playing={isVideo}
-                        muted
-                        height="300px"
-                        width="500px"
-                        url={myStream}
-                    /> : <h3>Your video is off</h3>}
-                </>
-            )}
+                {myStream && (
+                    <>
+                        <h1>My Stream</h1>
+                        {isVideo ? <ReactPlayer
+                            playing={isVideo}
+                            muted
+                            height="300px"
+                            width="500px"
+                            url={myStream}
+                        /> : <h3>Your video is off</h3>}
+                    </>
+                )}
+                {remoteStream && (
+                    <>
+                        <h1>Remote Stream</h1>
+                        {isRemoteVideo ? <ReactPlayer
+                            playing={isRemoteVideo}
+                            muted={isRemoteMute}
+                            height="300px"
+                            width="500px"
+                            url={remoteStream}
+                        /> : <h3>Peer's video is off</h3>}
+                    </>
+                )}
+            </div>
             {remoteStream && (
                 <>
-                    <h1>Remote Stream</h1>
-                    {isRemoteVideo ? <ReactPlayer
-                        playing={isRemoteVideo}
-                        muted={isRemoteMute}
-                        height="300px"
-                        width="500px"
-                        url={remoteStream}
-                    /> : <h3>Peer's video is off</h3>}
+                    <h1>Chats</h1>
+
+                    <div >
+                        {
+                            chats.map((text) => {
+                                return (
+                                    <div ref={scrollRef}>
+                                        {text.isRemoteMsg ?
+                                            <p>{remoteEmail + ": " + text.msg}</p>
+                                            :
+                                            <p>{"You: " + text.msg}</p>
+                                        }
+                                    </div>
+                                )
+                            })
+                        }
+                    </div>
+                    <div >
+                        <form onSubmit={(e) => { handleSendMsg(e) }}>
+                            <input
+                                type="text"
+                                placeholder="type your message here"
+                                value={msg}
+                                onChange={(e) => setMsg(e.target.value)}
+                            />
+                            <button type="submit">Send</button>
+                        </form>
+                    </div>
                 </>
             )}
-        </div>
+        </>
     );
 };
 

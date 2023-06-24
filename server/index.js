@@ -19,7 +19,7 @@ io.on("connection", (socket) => {
   });
 
   socket.on("user:call", ({ to, offer }) => {
-    io.to(to).emit("incomming:call", { from: socket.id, offer });
+    io.to(to).emit("incomming:call", { from: socket.id, offer, email: socketidToEmailMap.get(socket.id)});
   });
 
   socket.on("call:accepted", ({ to, ans }) => {
@@ -42,6 +42,10 @@ io.on("connection", (socket) => {
 
   socket.on("user:video", ({to, isVideo})=>{
     io.to(to).emit("user:video:done", { from: socket.id, isVideo });
+  })
+
+  socket.on("user:msgsend",({to,msg})=>{
+    io.to(to).emit("user:msgsend:done", { from: socket.id, msg });
   })
 
 });
