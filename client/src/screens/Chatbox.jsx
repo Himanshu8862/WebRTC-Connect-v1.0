@@ -7,6 +7,7 @@ const Chatbox = ({ remoteEmail, remoteSocketId }) => {
     const socket = useSocket();
     const [msg, setMsg] = useState("");
     const [chats, setChats] = useState([]);
+    const [isEnd, setIsEnd] = useState(false)
 
     const handleSendMsg = (e) => {
         e.preventDefault();
@@ -34,13 +35,22 @@ const Chatbox = ({ remoteEmail, remoteSocketId }) => {
         [chats],
     )
 
+    const handleEndCallIncomming = useCallback(
+        () => {
+            setIsEnd(true)
+        },
+        [],
+    )
+
     useEffect(() => {
         socket.on("user:msgsend:done", handleIncommingMsg);
+        socket.on("user:endcall", handleEndCallIncomming)
 
         return () => {
             socket.off("user:msgsend:done", handleIncommingMsg);
+            socket.off("user:endcall", handleEndCallIncomming)
         }
-    }, [socket, handleIncommingMsg])
+    }, [socket, handleIncommingMsg, handleEndCallIncomming])
 
     return (
         <>
@@ -59,7 +69,7 @@ const Chatbox = ({ remoteEmail, remoteSocketId }) => {
                                             {text.isRemoteMsg ? remoteEmail : "You"}
                                         </h6>
                                         <p
-                                        style={{overflowWrap:"break-word", wordWrap:"break-word", wordBreak:"break-word"}}
+                                            style={{ overflowWrap: "break-word", wordWrap: "break-word", wordBreak: "break-word" }}
                                             className={`text-wrap card-text ${text.isRemoteMsg ? "float-left" : "float-right"}`}
                                         >{text.msg}
                                         </p>
@@ -68,6 +78,17 @@ const Chatbox = ({ remoteEmail, remoteSocketId }) => {
                             </div>
                         )
                     })
+                }
+                {isEnd &&
+                    <div className="card">
+                        <div className="card-body">
+                            <h6
+                                className={`card-subtitle mb-2 text-muted`}
+                            >
+                                {`${remoteEmail} \nLEFT THE CHAT`}
+                            </h6>
+                        </div>
+                    </div>
                 }
 
             </div >

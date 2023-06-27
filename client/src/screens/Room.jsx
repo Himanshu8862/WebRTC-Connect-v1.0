@@ -21,6 +21,12 @@ const RoomPage = () => {
     const [isVideo, setIsVideo] = useState(true)
     const [isRemoteVideo, setIsRemoteVideo] = useState(true);
 
+    const [isScreen, setIsScreen] = useState(false)
+
+    const [videoTracks, setVideoTracks] = useState()
+
+    const [myScreen, setMyScreen] = useState();
+
     const handleUserJoined = useCallback(({ email, id }) => {
         console.log(`Email ${email} joined room`);
         setRemoteEmail(email);
@@ -32,6 +38,7 @@ const RoomPage = () => {
             audio: true,
             video: true,
         });
+        setVideoTracks(stream.getVideoTracks()[0]);
         const offer = await peer.getOffer();
         socket.emit("user:call", { to: remoteSocketId, offer });
         setMyStream(stream);
@@ -45,6 +52,7 @@ const RoomPage = () => {
                 audio: true,
                 video: true,
             });
+            setVideoTracks(stream.getVideoTracks()[0]);
             setMyStream(stream);
             console.log(`Incoming Call`, from, offer);
             const ans = await peer.getAnswer(offer);
@@ -54,11 +62,24 @@ const RoomPage = () => {
     );
 
     const sendStreams = useCallback(() => {
-        for (const track of myStream.getTracks()) {
-            peer.peer.addTrack(track, myStream);
-        }
+        // for (const track of myStream.getTracks()) {
+        //     peer.peer.addTrack(track, myStream);
+        // }
+        console.log(videoTracks)
+        console.log(myStream)
+        console.log(myScreen)
+        console.log("1",myStream)
+        peer.peer.addStream(myStream)
+        // peer.peer.removeStream(myStream)
+        // console.log("2",myStream)
+        // myStream.removeTrack(videoTracks)
+        // console.log("3",myStream)
+        // myStream.addTrack(videoTracks)
+        // console.log("4",myStream)
+        // peer.peer.addStream(myStream)
+        // console.log("5",myStream)
         setCutcall(true);
-    }, [myStream]);
+    }, [myStream, videoTracks, myScreen]);
 
     const handleCallAccepted = useCallback(
         ({ from, ans }) => {
@@ -100,8 +121,26 @@ const RoomPage = () => {
     }
 
     const handleVideo = () => {
+        if(!isVideo)
+        {
+            myStream.addTrack(videoTracks)
+            if(!isScreen)
+            {
+                peer.peer.removeStream(myStream)
+                peer.peer.addStream(myStream)
+            }
+        }
+        else
+        {
+            myStream.removeTrack(videoTracks)
+            if(!isScreen)
+            {
+                peer.peer.removeStream(myStream)
+                peer.peer.addStream(myStream)
+            }
+        }
         setIsVideo(!isVideo)
-        socket.emit("user:video", { to: remoteSocketId, isVideo })
+        // socket.emit("user:video", { to: remoteSocketId, isVideo })
     }
 
     const handleUserMuteDone = useCallback(({ ismute }) => {
@@ -114,14 +153,50 @@ const RoomPage = () => {
         setIsRemoteVideo(!isRemoteVideo)
     }, [isRemoteVideo])
 
+    const handleCallEnd = () => {
+        socket.emit("user:endcall",{to: remoteSocketId})
+        peer.peer.removeStream(myStream);
+        if(myScreen)
+        {
+            peer.peer.removeStream(myScreen);
+        }
+        navigate("/");
+    }
+
+    const handleShareScreen = useCallback(
+           async () => {
+            if(!isScreen)
+            {
+                const screen =  await navigator.mediaDevices.getDisplayMedia({
+                    audio: true,
+                    video: true,
+                });
+                console.log(screen)
+                setMyScreen(screen);
+                console.log(myScreen);
+                peer.peer.removeStream(myStream)
+                peer.peer.addStream(screen)
+            }
+            else
+            {
+                peer.peer.removeStream(myScreen)
+                peer.peer.addStream(myStream)
+            }
+            setIsScreen(!isScreen)
+        },
+        [isScreen, myScreen, myStream],
+    )
 
     useEffect(() => {
         peer.peer.addEventListener("track", async (ev) => {
-            const remoteStream = ev.streams;
-            console.log("GOT TRACKS!!");
-            setRemoteStream(remoteStream[0]);
+            const remoteStream1 = ev.streams;
+            console.log("GOT TRACKS!!",remoteStream1);
+            setRemoteStream(null);
+            setTimeout(() => {
+                setRemoteStream(remoteStream1[0]);
+              }, 10);
         });
-    }, []);
+    }, [remoteStream]);
 
     useEffect(() => {
         socket.on("user:joined", handleUserJoined);
@@ -166,15 +241,33 @@ const RoomPage = () => {
                             <div className="card">
                                 <div className="card-body">
                                     <h3 className="card-title">My Stream</h3>
-                                    {myStream && (
+                                    {!isScreen && myStream && (
                                         <>
-                                            {isVideo ? <ReactPlayer
+                                            {/* {isVideo ? <ReactPlayer
                                                 playing={isVideo}
                                                 muted
                                                 // height="300px"
                                                 width="100%"
                                                 url={myStream}
-                                            /> : <h3>Your video is off</h3>}
+                                            /> : <h3>Your video is off</h3>} */}
+                                             {<ReactPlayer
+                                                playing
+                                                muted
+                                                // height="300px"
+                                                width="100%"
+                                                url={myStream}
+                                            />}
+                                        </>
+                                    )}
+                                    {isScreen && myStream && (
+                                        <>
+                                             {<ReactPlayer
+                                                playing
+                                                muted
+                                                // height="300px"
+                                                width="100%"
+                                                url={myScreen}
+                                            />}
                                         </>
                                     )}
                                 </div>
@@ -186,13 +279,20 @@ const RoomPage = () => {
                                     <h3 className="card-title">Remote Stream</h3>
                                     {remoteStream && (
                                         <>
-                                            {isRemoteVideo ? <ReactPlayer
+                                            {/* {isRemoteVideo ? <ReactPlayer
                                                 playing={isRemoteVideo}
                                                 muted={isRemoteMute}
                                                 // height="300px"
                                                 width="100%"
                                                 url={remoteStream}
-                                            /> : <h3>Peer's video is off</h3>}
+                                            /> : <h3>Peer's video is off</h3>} */}
+                                            {<ReactPlayer
+                                                playing
+                                                muted={isRemoteMute}
+                                                // height="300px"
+                                                width="100%"
+                                                url={remoteStream}
+                                            />}
                                         </>
                                     )}
                                 </div>
@@ -201,7 +301,7 @@ const RoomPage = () => {
                     </div>
                 </div>
 
-                {cutcall && myStream && <button style={{height:"50px"}} className="btn btn-secondary mr-1" onClick={()=>{navigate("/")}}>Hang up</button>}
+                {cutcall && myStream && <button style={{height:"50px"}} className="btn btn-secondary mr-1" onClick={handleCallEnd}>Hang up</button>}
 
                 {!cutcall && myStream && <button style={{height:"50px"}} className="btn btn-secondary mr-1" onClick={sendStreams}>Answer</button>}
 
@@ -210,6 +310,8 @@ const RoomPage = () => {
                 {remoteStream && <button style={{height:"50px"}} className="btn btn-secondary mr-1" onClick={handleVideo}>{isVideo ? "Hide video" : "Show video"}</button>}
 
                 {remoteStream && <button style={{height:"50px"}} className="btn btn-secondary mr-1" onClick={handleMute}>{ismute ? "Unmute" : "Mute"}</button>}
+
+                {remoteStream && <button style={{height:"50px"}} className="btn btn-secondary mr-1" onClick={handleShareScreen}>{isScreen ? "Hide Screen" : "Share Screen"}</button>}
 
 
 

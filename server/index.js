@@ -48,4 +48,7 @@ io.on("connection", (socket) => {
     io.to(to).emit("user:msgsend:done", { from: socket.id, msg });
   })
 
+  socket.on("user:endcall",({to})=>{
+    io.to(to).emit("user:endcall", { from: socket.id});
+  })
 });
