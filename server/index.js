@@ -18,6 +18,10 @@ io.on("connection", (socket) => {
     io.to(socket.id).emit("room:join", data);
   });
 
+  socket.on("user:inroom", ({to,id}) =>{
+    io.to(to).emit("user:inroom", { from: socket.id, id: id, email: socketidToEmailMap.get(id)});
+  })
+
   socket.on("user:call", ({ to, offer }) => {
     io.to(to).emit("incomming:call", { from: socket.id, offer, email: socketidToEmailMap.get(socket.id)});
   });

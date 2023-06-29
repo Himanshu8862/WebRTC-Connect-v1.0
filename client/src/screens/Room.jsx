@@ -31,9 +31,18 @@ const RoomPage = () => {
 
     const handleUserJoined = useCallback(({ email, id }) => {
         console.log(`Email ${email} joined room`);
+        socket.emit('user:inroom', {to: id, id: socket.id})
         setRemoteEmail(email);
         setRemoteSocketId(id);
-    }, []);
+    }, [socket]);
+
+    const handleInRoomUser = useCallback(
+        ({from, id, email}) => {
+            setRemoteEmail(email);
+            setRemoteSocketId(id);
+        },
+        [],
+    )
 
     const handleCallUser = useCallback(async () => {
         const stream = await navigator.mediaDevices.getUserMedia({
@@ -49,8 +58,6 @@ const RoomPage = () => {
 
     const handleIncommingCall = useCallback(
         async ({ from, offer, email }) => {
-            setRemoteSocketId(from);
-            setRemoteEmail(email);
             const stream = await navigator.mediaDevices.getUserMedia({
                 audio: true,
                 video: true,
@@ -66,22 +73,11 @@ const RoomPage = () => {
     );
 
     const sendStreams = useCallback(() => {
-        // for (const track of myStream.getTracks()) {
-        //     peer.peer.addTrack(track, myStream);
-        // }
         console.log(videoTracks)
         console.log(myStream)
         console.log(myScreen)
         console.log("1",myStream)
         peer.peer.addStream(myStream)
-        // peer.peer.removeStream(myStream)
-        // console.log("2",myStream)
-        // myStream.removeTrack(videoTracks)
-        // console.log("3",myStream)
-        // myStream.addTrack(videoTracks)
-        // console.log("4",myStream)
-        // peer.peer.addStream(myStream)
-        // console.log("5",myStream)
         setCutcall(true);
     }, [myStream, videoTracks, myScreen]);
 
@@ -122,35 +118,11 @@ const RoomPage = () => {
     const handleMute = () => {
         if(!ismute)
         {
-            if(!isScreen)
-            {
-                peer.peer.removeStream(myStream)
-                myStream.removeTrack(audioTracks)
-                peer.peer.addStream(myStream)
-            }
-            else
-            {
-                peer.peer.removeStream(myScreen)
-                myScreen.removeTrack(audioTracks)
-                myStream.removeTrack(audioTracks)
-                peer.peer.addStream(myScreen)
-            }
+            audioTracks.enabled = false;
         }
         else
         {
-            if(!isScreen)
-            {
-                peer.peer.removeStream(myStream)
-                myStream.addTrack(audioTracks)
-                peer.peer.addStream(myStream)
-            }
-            else
-            {
-                peer.peer.removeStream(myScreen)
-                myScreen.addTrack(audioTracks)
-                myStream.addTrack(audioTracks)
-                peer.peer.addStream(myScreen)
-            }
+            audioTracks.enabled = true;
         }
         setIsmute(!ismute)
         // socket.emit("user:mute", { to: remoteSocketId, ismute })
@@ -159,21 +131,11 @@ const RoomPage = () => {
     const handleVideo = () => {
         if(!isVideo)
         {
-            myStream.addTrack(videoTracks)
-            if(!isScreen)
-            {
-                // peer.peer.removeStream(myStream)
-                peer.peer.addStream(myStream)
-            }
+            videoTracks.enabled = true;
         }
         else
         {
-            myStream.removeTrack(videoTracks)
-            if(!isScreen)
-            {
-                // peer.peer.removeStream(myStream)
-                peer.peer.addStream(myStream)
-            }
+            videoTracks.enabled = false;
         }
         setIsVideo(!isVideo)
         // socket.emit("user:video", { to: remoteSocketId, isVideo })
@@ -204,16 +166,11 @@ const RoomPage = () => {
             if(!isScreen)
             {
                 const screen =  await navigator.mediaDevices.getDisplayMedia({
-                    // audio: true,
                     video: true,
                 });
                 console.log(screen)
-                // screen.removeTrack(screen.getAudioTracks()[0])
                 setScreenTracks(screen.getVideoTracks()[0]);
-                if(!ismute)
-                {
-                    screen.addTrack(audioTracks)
-                }
+                screen.addTrack(audioTracks)
                 setMyScreen(screen);
                 console.log(myScreen);
                 peer.peer.removeStream(myStream)
@@ -224,11 +181,10 @@ const RoomPage = () => {
                 peer.peer.removeStream(myScreen)
                 peer.peer.addStream(myStream)
                 screenTracks.stop()
-                // myScreen.getVideoTracks().forEach(track => track.stop())
             }
             setIsScreen(!isScreen)
         },
-        [isScreen, myScreen, myStream, audioTracks, screenTracks, ismute],
+        [isScreen, myScreen, myStream, audioTracks, screenTracks],
     )
 
     useEffect(() => {
@@ -244,6 +200,7 @@ const RoomPage = () => {
 
     useEffect(() => {
         socket.on("user:joined", handleUserJoined);
+        socket.on("user:inroom", handleInRoomUser);
         socket.on("incomming:call", handleIncommingCall);
         socket.on("call:accepted", handleCallAccepted);
         socket.on("peer:nego:needed", handleNegoNeedIncomming);
@@ -254,6 +211,7 @@ const RoomPage = () => {
 
         return () => {
             socket.off("user:joined", handleUserJoined);
+            socket.off("user:inroom", handleInRoomUser);
             socket.off("incomming:call", handleIncommingCall);
             socket.off("call:accepted", handleCallAccepted);
             socket.off("peer:nego:needed", handleNegoNeedIncomming);
@@ -264,6 +222,7 @@ const RoomPage = () => {
     }, [
         socket,
         handleUserJoined,
+        handleInRoomUser,
         handleIncommingCall,
         handleCallAccepted,
         handleNegoNeedIncomming,
@@ -363,7 +322,7 @@ const RoomPage = () => {
             </div>
 
             <div className="col-sm-4">
-            {remoteStream &&
+            {cutcall &&
                 <Chatbox remoteEmail={remoteEmail} remoteSocketId={remoteSocketId} />
             }
             </div>
