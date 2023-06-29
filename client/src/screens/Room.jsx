@@ -24,6 +24,8 @@ const RoomPage = () => {
     const [isScreen, setIsScreen] = useState(false)
 
     const [videoTracks, setVideoTracks] = useState()
+    const [audioTracks, setAudioTracks] = useState()
+    const [screenTracks, setScreenTracks] = useState()
 
     const [myScreen, setMyScreen] = useState();
 
@@ -39,6 +41,7 @@ const RoomPage = () => {
             video: true,
         });
         setVideoTracks(stream.getVideoTracks()[0]);
+        setAudioTracks(stream.getAudioTracks()[0])
         const offer = await peer.getOffer();
         socket.emit("user:call", { to: remoteSocketId, offer });
         setMyStream(stream);
@@ -53,6 +56,7 @@ const RoomPage = () => {
                 video: true,
             });
             setVideoTracks(stream.getVideoTracks()[0]);
+            setAudioTracks(stream.getAudioTracks()[0])
             setMyStream(stream);
             console.log(`Incoming Call`, from, offer);
             const ans = await peer.getAnswer(offer);
@@ -116,8 +120,40 @@ const RoomPage = () => {
     }, []);
 
     const handleMute = () => {
+        if(!ismute)
+        {
+            if(!isScreen)
+            {
+                peer.peer.removeStream(myStream)
+                myStream.removeTrack(audioTracks)
+                peer.peer.addStream(myStream)
+            }
+            else
+            {
+                peer.peer.removeStream(myScreen)
+                myScreen.removeTrack(audioTracks)
+                myStream.removeTrack(audioTracks)
+                peer.peer.addStream(myScreen)
+            }
+        }
+        else
+        {
+            if(!isScreen)
+            {
+                peer.peer.removeStream(myStream)
+                myStream.addTrack(audioTracks)
+                peer.peer.addStream(myStream)
+            }
+            else
+            {
+                peer.peer.removeStream(myScreen)
+                myScreen.addTrack(audioTracks)
+                myStream.addTrack(audioTracks)
+                peer.peer.addStream(myScreen)
+            }
+        }
         setIsmute(!ismute)
-        socket.emit("user:mute", { to: remoteSocketId, ismute })
+        // socket.emit("user:mute", { to: remoteSocketId, ismute })
     }
 
     const handleVideo = () => {
@@ -126,7 +162,7 @@ const RoomPage = () => {
             myStream.addTrack(videoTracks)
             if(!isScreen)
             {
-                peer.peer.removeStream(myStream)
+                // peer.peer.removeStream(myStream)
                 peer.peer.addStream(myStream)
             }
         }
@@ -135,7 +171,7 @@ const RoomPage = () => {
             myStream.removeTrack(videoTracks)
             if(!isScreen)
             {
-                peer.peer.removeStream(myStream)
+                // peer.peer.removeStream(myStream)
                 peer.peer.addStream(myStream)
             }
         }
@@ -168,10 +204,16 @@ const RoomPage = () => {
             if(!isScreen)
             {
                 const screen =  await navigator.mediaDevices.getDisplayMedia({
-                    audio: true,
+                    // audio: true,
                     video: true,
                 });
                 console.log(screen)
+                // screen.removeTrack(screen.getAudioTracks()[0])
+                setScreenTracks(screen.getVideoTracks()[0]);
+                if(!ismute)
+                {
+                    screen.addTrack(audioTracks)
+                }
                 setMyScreen(screen);
                 console.log(myScreen);
                 peer.peer.removeStream(myStream)
@@ -181,10 +223,12 @@ const RoomPage = () => {
             {
                 peer.peer.removeStream(myScreen)
                 peer.peer.addStream(myStream)
+                screenTracks.stop()
+                // myScreen.getVideoTracks().forEach(track => track.stop())
             }
             setIsScreen(!isScreen)
         },
-        [isScreen, myScreen, myStream],
+        [isScreen, myScreen, myStream, audioTracks, screenTracks, ismute],
     )
 
     useEffect(() => {
